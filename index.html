@@ -83,7 +83,7 @@
       margin: 0 auto;
       padding: 0 16px 40px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 12px;
     }
     .channel-card {
@@ -103,8 +103,8 @@
       transform: translateY(-2px);
     }
     .channel-logo {
-      width: 46px;
-      height: 46px;
+      width: 48px;
+      height: 48px;
       object-fit: contain;
       background: #0d0e12;
       border-radius: 6px;
@@ -122,10 +122,18 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .channel-epg {
+      font-size: 12px;
+      color: #fb923c;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .channel-group {
       font-size: 11px;
       color: #9ca3af;
-      margin-top: 3px;
+      margin-top: 2px;
     }
   </style>
 </head>
@@ -136,69 +144,85 @@
       <video id="player" controls autoplay playsinline></video>
     </div>
     <div class="player-info">
-      <span id="now-playing" style="font-weight: bold;">Selecciona un canal de la lista</span>
+      <div>
+        <span id="now-playing" style="font-weight: bold;">Selecciona un canal</span>
+        <span id="now-epg" style="color: #fb923c; margin-left: 8px; font-size: 13px;"></span>
+      </div>
       <span id="status-badge" class="badge" style="display:none;">EN VIVO</span>
     </div>
   </header>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="Buscar canal..." oninput="filtrarCanales()">
+    <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanales()">
     <select id="group-filter" onchange="filtrarCanales()">
       <option value="">Todas las categorías</option>
     </select>
   </div>
 
   <div class="channels-grid" id="grid">
-    <p style="padding: 20px; color: #888;">Cargando canales...</p>
+    <p style="padding: 20px; color: #888;">Cargando canales y programación...</p>
   </div>
 
   <script>
     const ACE_SERVER_IP = '192.168.1.14';
-    const TARGET_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
-    
-    // Lista de proxies de respaldo
-    const PROXIES = [
-      'hashes.json', // Intento local (si existe en tu propio repo)
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(TARGET_URL)}`,
-      `https://corsproxy.io/?url=${encodeURIComponent(TARGET_URL)}`,
-      `https://thingproxy.freeboard.io/fetch/${TARGET_URL}`
-    ];
-
     let listaCanales = [];
+    let guiaEPG = {};
     let hls = null;
 
-    async function descargarJson() {
-      for (const url of PROXIES) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data && data.hashes && Array.isArray(data.hashes)) {
-            return data.hashes;
-          }
-        } catch (e) {
-          console.warn('Fallo al cargar desde:', url);
-        }
-      }
-      return null;
+    function limpiarTexto(txt) {
+      return (txt || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
     async function init() {
       const grid = document.getElementById('grid');
-      const hashes = await descargarJson();
+      try {
+        // Carga en paralelo de canales y guía EPG
+        const [resCanales, resEpg] = await Promise.allSettled([
+          fetch('hashes.json?v=' + Date.now()).then(r => r.json()),
+          fetch('epg.json?v=' + Date.now()).then(r => r.json())
+        ]);
 
-      if (hashes && hashes.length > 0) {
-        listaCanales = hashes;
-        poblarFiltroGrupos();
-        renderizarCanales(listaCanales);
-      } else {
-        grid.innerHTML = `
-          <div style="padding: 20px; color: #f87171;">
-            <p><strong>No se pudo obtener la lista remota directamente por bloqueo anti-bot de git.gay.</strong></p>
-            <p style="margin-top:8px; font-size:13px; color:#aaa;">Crea el archivo <code>hashes.json</code> en tu propio repositorio de GitHub con el contenido del enlace para que cargue instantáneamente.</p>
-          </div>
-        `;
+        if (resEpg.status === 'fulfilled' && resEpg.value) {
+          guiaEPG = resEpg.value;
+        }
+
+        if (resCanales.status === 'fulfilled' && resCanales.value.hashes) {
+          listaCanales = resCanales.value.hashes;
+          poblarFiltroGrupos();
+          renderizarCanales(listaCanales);
+        } else {
+          grid.innerHTML = '<p style="color:#f55; padding:20px;">No se pudieron cargar los canales.</p>';
+        }
+      } catch (err) {
+        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error de carga general.</p>';
       }
+    }
+
+    function obtenerInfoEPG(canal) {
+      if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
+
+      const ref = limpiarTexto(canal.tvg_id || canal.title);
+      // Buscar coincidencia en las claves del JSON EPG
+      const keyEpg = Object.keys(guiaEPG).find(k => {
+        const norm = limpiarTexto(k);
+        return norm === ref || norm.includes(ref) || ref.includes(norm);
+      });
+
+      if (!keyEpg || !Array.isArray(guiaEPG[keyEpg])) return 'Emisión en directo';
+
+      const ahora = new Date();
+      const actual = guiaEPG[keyEpg].find(ev => {
+        const ini = new Date(ev.start || ev.inicio);
+        const fin = new Date(ev.end || ev.fin);
+        return ahora >= ini && ahora <= fin;
+      });
+
+      if (actual) {
+        const horaIni = new Date(actual.start || actual.inicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${horaIni} - ${actual.title || actual.nombre}`;
+      }
+
+      return 'Emisión en directo';
     }
 
     function poblarFiltroGrupos() {
@@ -223,16 +247,18 @@
       }
 
       canales.forEach(canal => {
+        const epgTexto = obtenerInfoEPG(canal);
         const card = document.createElement('div');
         card.className = 'channel-card';
-        card.onclick = () => reproducir(canal);
+        card.onclick = () => reproducir(canal, epgTexto);
 
-        const logoUrl = canal.logo || 'https://via.placeholder.com/46?text=TV';
+        const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
 
         card.innerHTML = `
-          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/46?text=TV'" loading="lazy">
+          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
           <div class="channel-details">
             <div class="channel-title" title="${canal.title}">${canal.title}</div>
+            <div class="channel-epg" title="${epgTexto}">▶ ${epgTexto}</div>
             <div class="channel-group">${canal.group || 'GENERAL'}</div>
           </div>
         `;
@@ -245,19 +271,21 @@
       const grp = document.getElementById('group-filter').value;
 
       const filtrados = listaCanales.filter(c => {
-        const coincideNombre = (c.title || '').toLowerCase().includes(q);
+        const epg = obtenerInfoEPG(c).toLowerCase();
+        const coincideTexto = (c.title || '').toLowerCase().includes(q) || epg.includes(q);
         const coincideGrupo = !grp || c.group === grp;
-        return coincideNombre && coincideGrupo;
+        return coincideTexto && coincideGrupo;
       });
 
       renderizarCanales(filtrados);
     }
 
-    function reproducir(canal) {
+    function reproducir(canal, epgTexto) {
       const video = document.getElementById('player');
       const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
 
       document.getElementById('now-playing').innerText = canal.title;
+      document.getElementById('now-epg').innerText = epgTexto !== 'Directo' && epgTexto !== 'Emisión en directo' ? epgTexto : '';
       document.getElementById('status-badge').style.display = 'inline-block';
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
