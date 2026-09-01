@@ -170,9 +170,13 @@
 
   <script>
     const ACE_SERVER_IP = '192.168.1.14';
-    const CHANNELS_JSON_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
     
-    // API pública EPG estructurada para canales en español
+    // URL original del JSON
+    const RAW_CHANNELS_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
+    // Pasa por proxy CORS para evitar el bloqueo del navegador
+    const CHANNELS_JSON_URL = `https://corsproxy.io/?url=${encodeURIComponent(RAW_CHANNELS_URL)}`;
+    
+    // Feed EPG público compatible
     const EPG_API_URL = 'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.json';
 
     let listaCanales = [];
@@ -180,49 +184,74 @@
     let hls = null;
 
     async function init() {
-      try {
-        // Carga simultánea de canales y guía EPG
-        const [resCanales, resEpg] = await Promise.allSettled([
-          fetch(CHANNELS_JSON_URL).then(r => r.json()),
-          fetch(EPG_API_URL).then(r => r.json())
-        ]);
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '<p style="padding: 20px; color: #888;">Cargando lista de canales y programación...</p>';
 
-        if (resEpg.status === 'fulfilled') {
-          guiaEPG = resEpg.value || {};
+      try {
+        let resCanalesData = null;
+
+        // Intentar descargar canales con proxy primario
+        try {
+          const res = await fetch(CHANNELS_JSON_URL);
+          resCanalesData = await res.json();
+        } catch (e) {
+          // Fallback con proxy secundario por si falla el primero
+          const resFallback = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(RAW_CHANNELS_URL)}`);
+          resCanalesData = await resFallback.json();
         }
 
-        if (resCanales.status === 'fulfilled' && resCanales.value.hashes) {
-          listaCanales = resCanales.value.hashes;
+        // Descarga de la guía EPG en paralelo
+        try {
+          const resEpg = await fetch(EPG_API_URL);
+          guiaEPG = await resEpg.json();
+        } catch (e) {
+          console.warn('No se pudo cargar la EPG, se mostrará sin guía.', e);
+        }
+
+        if (resCanalesData && resCanalesData.hashes) {
+          listaCanales = resCanalesData.hashes;
           poblarFiltroGrupos();
           renderizarCanales(listaCanales);
         } else {
-          document.getElementById('grid').innerHTML = '<p style="color:#f55;">Error al cargar el JSON de canales.</p>';
+          grid.innerHTML = '<p style="color:#f55; padding: 20px;">No se encontraron canales en el JSON.</p>';
         }
       } catch (err) {
         console.error(err);
-        document.getElementById('grid').innerHTML = '<p style="color:#f55;">Error de conexión.</p>';
+        grid.innerHTML = '<p style="color:#f55; padding: 20px;">Error al conectar con la fuente de canales. Revisa la consola (F12).</p>';
       }
     }
 
+    function normalizarTexto(texto) {
+      return (texto || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
     function obtenerEPGActual(canal) {
-      if (!canal.tvg_id || !guiaEPG[canal.tvg_id]) return 'Emisión en directo';
-      
+      if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
+
+      const canalIdNorm = normalizarTexto(canal.tvg_id || canal.title);
+      // Buscar coincidencia en la clave del objeto EPG
+      const keyEpg = Object.keys(guiaEPG).find(k => normalizarTexto(k).includes(canalIdNorm) || canalIdNorm.includes(normalizarTexto(k)));
+
+      if (!keyEpg || !guiaEPG[keyEpg]) return 'Emisión en directo';
+
       const ahora = new Date();
-      const eventos = guiaEPG[canal.tvg_id];
-      
-      // Busca el evento que coincide con la hora local actual
+      const eventos = guiaEPG[keyEpg];
+
+      if (!Array.isArray(eventos)) return 'Emisión en directo';
+
       const actual = eventos.find(ev => {
-        const inicio = new Date(ev.start);
-        const fin = new Date(ev.end);
+        const inicio = new Date(ev.start || ev.inicio);
+        const fin = new Date(ev.end || ev.fin);
         return ahora >= inicio && ahora <= fin;
       });
 
-      return actual ? `${actual.title}` : 'Sin datos de guía';
+      return actual ? (actual.title || actual.nombre || 'Directo') : 'Emisión en directo';
     }
 
     function poblarFiltroGrupos() {
       const grupos = [...new Set(listaCanales.map(c => c.group).filter(Boolean))].sort();
       const select = document.getElementById('group-filter');
+      select.innerHTML = '<option value="">Todas las categorías</option>';
       grupos.forEach(g => {
         const opt = document.createElement('option');
         opt.value = g;
@@ -235,6 +264,11 @@
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
 
+      if (canales.length === 0) {
+        grid.innerHTML = '<p style="color:#aaa; padding: 20px;">No se encontraron canales que coincidan con la búsqueda.</p>';
+        return;
+      }
+
       canales.forEach(canal => {
         const epgText = obtenerEPGActual(canal);
         const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
@@ -246,8 +280,8 @@
         card.innerHTML = `
           <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
           <div class="channel-details">
-            <div class="channel-title">${canal.title}</div>
-            <div class="channel-epg">📺 ${epgText}</div>
+            <div class="channel-title" title="${canal.title}">${canal.title}</div>
+            <div class="channel-epg" title="${epgText}">📺 ${epgText}</div>
             <div class="channel-group">${canal.group || 'GENERAL'}</div>
           </div>
         `;
@@ -260,7 +294,7 @@
       const grp = document.getElementById('group-filter').value;
 
       const filtrados = listaCanales.filter(c => {
-        const coincideNombre = c.title.toLowerCase().includes(q);
+        const coincideNombre = (c.title || '').toLowerCase().includes(q);
         const coincideGrupo = !grp || c.group === grp;
         return coincideNombre && coincideGrupo;
       });
