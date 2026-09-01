@@ -3,122 +3,295 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AceStream Web Player</title>
+  <title>IPTV & AceStream Hub</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
+      background: #0f0f12;
+      color: #f0f0f0;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Reproductor superior */
+    header {
       background: #000;
-      color: #fff;
-      font-family: system-ui, sans-serif;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
     }
-    .video-container {
+    .video-box {
       width: 100%;
-      max-width: 1100px;
-      display: flex;
-      justify-content: center;
+      max-width: 900px;
+      aspect-ratio: 16 / 9;
       background: #050505;
     }
     video {
       width: 100%;
-      height: auto;
-      max-height: 85vh;
+      height: 100%;
       display: block;
-      background: #111;
     }
-    .controls {
-      padding: 14px;
+    .player-info {
+      width: 100%;
+      max-width: 900px;
+      padding: 10px 16px;
+      background: #18181b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+    .badge {
+      background: #ff8800;
+      color: #000;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 11px;
+    }
+
+    /* Barra de herramientas */
+    .toolbar {
+      max-width: 1200px;
+      width: 100%;
+      margin: 16px auto;
+      padding: 0 16px;
       display: flex;
       gap: 12px;
-      align-items: center;
-      background: #1a1a1a;
-      width: 100%;
-      max-width: 1100px;
+      flex-wrap: wrap;
     }
-    button {
-      background: #ff8800;
+    input, select {
+      padding: 10px 14px;
+      background: #1e1e24;
+      border: 1px solid #2e2e38;
+      border-radius: 8px;
       color: #fff;
-      border: none;
-      padding: 9px 18px;
       font-size: 14px;
-      font-weight: bold;
-      border-radius: 6px;
-      cursor: pointer;
+      outline: none;
     }
-    button:hover { background: #e07700; }
-    #status { font-size: 13px; color: #aaa; }
+    input { flex: 1; min-width: 200px; }
+    input:focus, select:focus { border-color: #ff8800; }
+
+    /* Parrilla de canales */
+    .channels-grid {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 16px 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .channel-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .channel-card:hover {
+      background: #27272a;
+      border-color: #ff8800;
+      transform: translateY(-2px);
+    }
+    .channel-logo {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      background: #09090b;
+      border-radius: 6px;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .channel-details {
+      flex: 1;
+      overflow: hidden;
+    }
+    .channel-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #fff;
+    }
+    .channel-epg {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .channel-group {
+      font-size: 10px;
+      color: #71717a;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
   </style>
 </head>
 <body>
 
-  <div class="video-container">
-    <video id="v" controls autoplay playsinline></video>
+  <header>
+    <div class="video-box">
+      <video id="player" controls autoplay playsinline></video>
+    </div>
+    <div class="player-info">
+      <div>
+        <span id="now-playing" style="font-weight: bold;">Selecciona un canal</span>
+        <span id="now-epg" style="color: #a1a1aa; margin-left: 8px;"></span>
+      </div>
+      <span id="status-badge" class="badge" style="display:none;">EN VIVO</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanales()">
+    <select id="group-filter" onchange="filtrarCanales()">
+      <option value="">Todas las categorías</option>
+    </select>
   </div>
-  <div class="controls">
-    <button onclick="iniciarReproduccion()">Cargar nuevo ID</button>
-    <span id="status">Esperando ID...</span>
+
+  <div class="channels-grid" id="grid">
+    <p style="padding: 20px; color: #888;">Cargando lista de canales y programación...</p>
   </div>
 
   <script>
     const ACE_SERVER_IP = '192.168.1.14';
+    const CHANNELS_JSON_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
+    
+    // API pública EPG estructurada para canales en español
+    const EPG_API_URL = 'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.json';
+
+    let listaCanales = [];
+    let guiaEPG = {};
     let hls = null;
 
-    function iniciarReproduccion() {
-      const id = prompt('Pega aquí la ID de AceStream:');
-      if (!id || !id.trim()) return;
+    async function init() {
+      try {
+        // Carga simultánea de canales y guía EPG
+        const [resCanales, resEpg] = await Promise.allSettled([
+          fetch(CHANNELS_JSON_URL).then(r => r.json()),
+          fetch(EPG_API_URL).then(r => r.json())
+        ]);
 
-      const cleanId = id.trim();
-      document.title = 'AceStream: ' + cleanId.substring(0, 8);
-      const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${cleanId}`;
-      const video = document.getElementById('v');
-      const status = document.getElementById('status');
+        if (resEpg.status === 'fulfilled') {
+          guiaEPG = resEpg.value || {};
+        }
 
-      status.innerText = 'Conectando con el motor y cargando buffer...';
-
-      if (hls) {
-        hls.destroy();
-      }
-
-      if (Hls.isSupported()) {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 60
-        });
-
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-          status.innerText = 'Reproduciendo: ' + cleanId.substring(0, 8);
-          video.play().catch(() => {
-            status.innerText = 'Pulsa el botón Play del reproductor.';
-          });
-        });
-
-        hls.on(Hls.Events.ERROR, function (event, data) {
-          if (data.fatal) {
-            status.innerText = 'Error al cargar el stream. Comprueba el ID.';
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Soporte nativo para Safari en iPhone / iPad
-        video.src = streamUrl;
-        video.addEventListener('loadedmetadata', function() {
-          video.play();
-        });
+        if (resCanales.status === 'fulfilled' && resCanales.value.hashes) {
+          listaCanales = resCanales.value.hashes;
+          poblarFiltroGrupos();
+          renderizarCanales(listaCanales);
+        } else {
+          document.getElementById('grid').innerHTML = '<p style="color:#f55;">Error al cargar el JSON de canales.</p>';
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('grid').innerHTML = '<p style="color:#f55;">Error de conexión.</p>';
       }
     }
 
-    window.onload = () => {
-      setTimeout(iniciarReproduccion, 150);
-    };
+    function obtenerEPGActual(canal) {
+      if (!canal.tvg_id || !guiaEPG[canal.tvg_id]) return 'Emisión en directo';
+      
+      const ahora = new Date();
+      const eventos = guiaEPG[canal.tvg_id];
+      
+      // Busca el evento que coincide con la hora local actual
+      const actual = eventos.find(ev => {
+        const inicio = new Date(ev.start);
+        const fin = new Date(ev.end);
+        return ahora >= inicio && ahora <= fin;
+      });
+
+      return actual ? `${actual.title}` : 'Sin datos de guía';
+    }
+
+    function poblarFiltroGrupos() {
+      const grupos = [...new Set(listaCanales.map(c => c.group).filter(Boolean))].sort();
+      const select = document.getElementById('group-filter');
+      grupos.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.innerText = g;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderizarCanales(canales) {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      canales.forEach(canal => {
+        const epgText = obtenerEPGActual(canal);
+        const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
+
+        const card = document.createElement('div');
+        card.className = 'channel-card';
+        card.onclick = () => reproducir(canal, epgText);
+
+        card.innerHTML = `
+          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
+          <div class="channel-details">
+            <div class="channel-title">${canal.title}</div>
+            <div class="channel-epg">📺 ${epgText}</div>
+            <div class="channel-group">${canal.group || 'GENERAL'}</div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function filtrarCanales() {
+      const q = document.getElementById('search').value.toLowerCase();
+      const grp = document.getElementById('group-filter').value;
+
+      const filtrados = listaCanales.filter(c => {
+        const coincideNombre = c.title.toLowerCase().includes(q);
+        const coincideGrupo = !grp || c.group === grp;
+        return coincideNombre && coincideGrupo;
+      });
+
+      renderizarCanales(filtrados);
+    }
+
+    function reproducir(canal, epgText) {
+      const video = document.getElementById('player');
+      const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
+
+      document.getElementById('now-playing').innerText = canal.title;
+      document.getElementById('now-epg').innerText = `(${epgText})`;
+      document.getElementById('status-badge').style.display = 'inline-block';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (hls) hls.destroy();
+
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play();
+      }
+    }
+
+    window.onload = init;
   </script>
 </body>
 </html>
