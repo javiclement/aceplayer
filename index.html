@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AceStream Web Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .video-container {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      justify-content: center;
+      background: #050505;
+    }
+    video {
+      width: 100%;
+      height: auto;
+      max-height: 85vh;
+      display: block;
+      background: #111;
+    }
+    .controls {
+      padding: 14px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #1a1a1a;
+      width: 100%;
+      max-width: 1100px;
+    }
+    button {
+      background: #ff8800;
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #e07700; }
+    #status { font-size: 13px; color: #aaa; }
+  </style>
+</head>
+<body>
+
+  <div class="video-container">
+    <video id="v" controls autoplay playsinline></video>
+  </div>
+  <div class="controls">
+    <button onclick="iniciarReproduccion()">Cargar nuevo ID</button>
+    <span id="status">Esperando ID...</span>
+  </div>
+
+  <script>
+    const ACE_SERVER_IP = '192.168.1.14';
+    let hls = null;
+
+    function iniciarReproduccion() {
+      const id = prompt('Pega aquí la ID de AceStream:');
+      if (!id || !id.trim()) return;
+
+      const cleanId = id.trim();
+      document.title = 'AceStream: ' + cleanId.substring(0, 8);
+      const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${cleanId}`;
+      const video = document.getElementById('v');
+      const status = document.getElementById('status');
+
+      status.innerText = 'Conectando con el motor y cargando buffer...';
+
+      if (hls) {
+        hls.destroy();
+      }
+
+      if (Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 60
+        });
+
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          status.innerText = 'Reproduciendo: ' + cleanId.substring(0, 8);
+          video.play().catch(() => {
+            status.innerText = 'Pulsa el botón Play del reproductor.';
+          });
+        });
+
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          if (data.fatal) {
+            status.innerText = 'Error al cargar el stream. Comprueba el ID.';
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Soporte nativo para Safari en iPhone / iPad
+        video.src = streamUrl;
+        video.addEventListener('loadedmetadata', function() {
+          video.play();
+        });
+      }
+    }
+
+    window.onload = () => {
+      setTimeout(iniciarReproduccion, 150);
+    };
+  </script>
+</body>
+</html>
