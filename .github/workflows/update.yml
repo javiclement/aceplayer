@@ -1,0 +1,26 @@
+name: Actualizar hashes.json
+
+on:
+  schedule:
+    # Se ejecuta de forma automática cada 2 horas
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Permite forzar la ejecución manual cuando quieras
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Obtener JSON original
+        run: |
+          curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+          "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o hashes.json
+
+      - name: Guardar cambios si hay novedades
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add hashes.json
+          git diff --staged --quiet || (git commit -m "Auto-update hashes.json" && git push)
