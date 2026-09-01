@@ -129,6 +129,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-weight: 500;
     }
     .channel-group {
       font-size: 11px;
@@ -169,20 +170,13 @@
     let guiaEPG = {};
     let hls = null;
 
-    // Limpia resoluciones, calidades, asteriscos y caracteres extra
-    function normalizarNombreCanal(nombre) {
-      if (!nombre) return '';
-      return nombre
+    function limpiar(str) {
+      if (!str) return '';
+      return str
         .toLowerCase()
-        .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|h265|multi|feed)\b/gi, '')
-        .replace(/[\*\_\-\.\(\)\[\]\+]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    // Simplifica a texto alfanumérico estricto para comparaciones
-    function textoPuro(str) {
-      return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|multi|feed)\b/g, '')
+        .replace(/[\*\_\-\.\(\)\[\]\+]/g, '')
+        .replace(/[^a-z0-9]/g, '');
     }
 
     async function init() {
@@ -205,57 +199,47 @@
           grid.innerHTML = '<p style="color:#f55; padding:20px;">No se pudieron cargar los canales.</p>';
         }
       } catch (err) {
-        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error de conexión general.</p>';
+        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error al inicializar.</p>';
       }
     }
 
     function obtenerInfoEPG(canal) {
       if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
 
-      // 1. Obtener nombre limpio del canal
-      const nombreLimpio = normalizarNombreCanal(canal.tvg_id || canal.title);
-      const nombrePuro = textoPuro(nombreLimpio);
+      const ref1 = limpiar(canal.tvg_id);
+      const ref2 = limpiar(canal.title);
 
-      if (!nombrePuro) return 'Emisión en directo';
-
-      // 2. Buscar la mejor coincidencia en las claves de la EPG
-      const epgKeys = Object.keys(guiaEPG);
-      
-      // Coincidencia exacta o parcial
-      let keyCoincidente = epgKeys.find(k => {
-        const kPuro = textoPuro(k);
-        return kPuro === nombrePuro;
+      const keys = Object.keys(guiaEPG);
+      let matchedKey = keys.find(k => {
+        const kLimpia = limpiar(k);
+        return (ref1 && kLimpia === ref1) || (ref2 && kLimpia === ref2);
       });
 
-      if (!keyCoincidente) {
-        keyCoincidente = epgKeys.find(k => {
-          const kPuro = textoPuro(k);
-          return kPuro.includes(nombrePuro) || nombrePuro.includes(kPuro);
+      if (!matchedKey) {
+        matchedKey = keys.find(k => {
+          const kLimpia = limpiar(k);
+          return (ref1 && (kLimpia.includes(ref1) || ref1.includes(kLimpia))) ||
+                 (ref2 && (kLimpia.includes(ref2) || ref2.includes(kLimpia)));
         });
       }
 
-      if (!keyCoincidente || !Array.isArray(guiaEPG[keyCoincidente])) {
-        return 'Emisión en directo';
+      if (!matchedKey || !Array.isArray(guiaEPG[matchedKey])) {
+        return 'Directo';
       }
 
-      // 3. Obtener el evento según la hora actual
       const ahora = new Date();
-      const eventos = guiaEPG[keyCoincidente];
-
-      const actual = eventos.find(ev => {
-        const ini = new Date(ev.start || ev.inicio);
-        const fin = new Date(ev.end || ev.fin);
+      const actual = guiaEPG[matchedKey].find(ev => {
+        const ini = new Date(ev.start);
+        const fin = new Date(ev.end);
         return ahora >= ini && ahora <= fin;
       });
 
       if (actual) {
-        const dateIni = new Date(actual.start || actual.inicio);
-        const horaIni = dateIni.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const titulo = actual.title || actual.nombre || 'Directo';
-        return `${horaIni} - ${titulo}`;
+        const horaIni = new Date(actual.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${horaIni} - ${actual.title}`;
       }
 
-      return 'Emisión en directo';
+      return 'Directo';
     }
 
     function poblarFiltroGrupos() {
@@ -307,7 +291,7 @@
         const epg = obtenerInfoEPG(c).toLowerCase();
         const coincideTexto = (c.title || '').toLowerCase().includes(q) || epg.includes(q);
         const coincideGrupo = !grp || c.group === grp;
-        return coincideNombre && coincideGrupo;
+        return coincideTexto && coincideGrupo;
       });
 
       renderizarCanales(filtrados);
@@ -318,7 +302,7 @@
       const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
 
       document.getElementById('now-playing').innerText = canal.title;
-      document.getElementById('now-epg').innerText = epgTexto !== 'Directo' && epgTexto !== 'Emisión en directo' ? epgTexto : '';
+      document.getElementById('now-epg').innerText = epgTexto !== 'Directo' ? epgTexto : '';
       document.getElementById('status-badge').style.display = 'inline-block';
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
