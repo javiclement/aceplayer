@@ -1,30 +1,91 @@
-name: Actualizar hashes.json y EPG
+name: Actualizar hashes y EPG
 
 on:
   schedule:
-    # Se ejecuta cada 2 horas
     - cron: '0 */2 * * *'
   workflow_dispatch:
 
 jobs:
-  update-json:
+  update-data:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Obtener JSON original y EPG
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Descargar Hashes y parsear XMLTV a JSON
         run: |
-          # Descargar lista de hashes
-          curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
-          "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o hashes.json
+          # 1. Descargar hashes
+          curl -sSL -A "Mozilla/5.0" "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o hashes.json
 
-          # Descargar guía EPG estructurada en JSON
-          curl -sSL "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.json" -o epg.json
+          # 2. Descargar guía XMLTV oficial en español
+          curl -sSL "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml" -o guiatv.xml
 
-      - name: Guardar cambios si hay novedades
+          # 3. Script Python para convertir el XML en un JSON ligero optimizado
+          python - << 'EOF'
+          import xml.etree.ElementTree as ET
+          import json
+          import re
+          from datetime import datetime
+
+          def parse_xml_date(d_str):
+              if not d_str:
+                  return None
+              # Formato XMLTV: YYYYMMDDHHMMSS +0100 o similar
+              m = re.match(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})', d_str)
+              if m:
+                  y, mth, d, h, mn, s = m.groups()
+                  return f"{y}-{mth}-{d}T{h}:{mn}:{s}"
+              return None
+
+          tree = ET.parse('guiatv.xml')
+          root = tree.getroot()
+
+          # Mapeo de channel id a display-name
+          channels = {}
+          for ch in root.findall('channel'):
+              cid = ch.attrib.get('id')
+              dname = ch.find('display-name')
+              if cid and dname is not None and dname.text:
+                  channels[cid] = dname.text.strip()
+
+          epg = {}
+          for prog in root.findall('programme'):
+              cid = prog.attrib.get('channel')
+              start = parse_xml_date(prog.attrib.get('start'))
+              stop = parse_xml_date(prog.attrib.get('stop'))
+              title_el = prog.find('title')
+              title = title_el.text.strip() if title_el is not None and title_el.text else 'Emisión'
+
+              if cid and start and stop:
+                  # Guardar bajo el ID del canal y su nombre visible
+                  keys = [cid]
+                  if cid in channels:
+                      keys.append(channels[cid])
+
+                  for k in keys:
+                      if k not in epg:
+                          epg[k] = []
+                      epg[k].append({
+                          'start': start,
+                          'end': stop,
+                          'title': title
+                      })
+
+          with open('epg.json', 'w', encoding='utf-8') as f:
+              json.dump(epg, f, ensure_ascii=False)
+          EOF
+
+          # Limpiar archivo XML pesado
+          rm guiatv.xml
+
+      - name: Guardar cambios
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add hashes.json epg.json
-          git diff --staged --quiet || (git commit -m "Auto-update hashes and EPG" && git push)
+          git diff --staged --quiet || (git commit -m "Auto-update hashes and parsed EPG" && git push)
