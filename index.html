@@ -169,14 +169,25 @@
     let guiaEPG = {};
     let hls = null;
 
-    function limpiarTexto(txt) {
-      return (txt || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Limpia resoluciones, calidades, asteriscos y caracteres extra
+    function normalizarNombreCanal(nombre) {
+      if (!nombre) return '';
+      return nombre
+        .toLowerCase()
+        .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|h265|multi|feed)\b/gi, '')
+        .replace(/[\*\_\-\.\(\)\[\]\+]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    // Simplifica a texto alfanumérico estricto para comparaciones
+    function textoPuro(str) {
+      return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
     async function init() {
       const grid = document.getElementById('grid');
       try {
-        // Carga en paralelo de canales y guía EPG
         const [resCanales, resEpg] = await Promise.allSettled([
           fetch('hashes.json?v=' + Date.now()).then(r => r.json()),
           fetch('epg.json?v=' + Date.now()).then(r => r.json())
@@ -194,32 +205,54 @@
           grid.innerHTML = '<p style="color:#f55; padding:20px;">No se pudieron cargar los canales.</p>';
         }
       } catch (err) {
-        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error de carga general.</p>';
+        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error de conexión general.</p>';
       }
     }
 
     function obtenerInfoEPG(canal) {
       if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
 
-      const ref = limpiarTexto(canal.tvg_id || canal.title);
-      // Buscar coincidencia en las claves del JSON EPG
-      const keyEpg = Object.keys(guiaEPG).find(k => {
-        const norm = limpiarTexto(k);
-        return norm === ref || norm.includes(ref) || ref.includes(norm);
+      // 1. Obtener nombre limpio del canal
+      const nombreLimpio = normalizarNombreCanal(canal.tvg_id || canal.title);
+      const nombrePuro = textoPuro(nombreLimpio);
+
+      if (!nombrePuro) return 'Emisión en directo';
+
+      // 2. Buscar la mejor coincidencia en las claves de la EPG
+      const epgKeys = Object.keys(guiaEPG);
+      
+      // Coincidencia exacta o parcial
+      let keyCoincidente = epgKeys.find(k => {
+        const kPuro = textoPuro(k);
+        return kPuro === nombrePuro;
       });
 
-      if (!keyEpg || !Array.isArray(guiaEPG[keyEpg])) return 'Emisión en directo';
+      if (!keyCoincidente) {
+        keyCoincidente = epgKeys.find(k => {
+          const kPuro = textoPuro(k);
+          return kPuro.includes(nombrePuro) || nombrePuro.includes(kPuro);
+        });
+      }
 
+      if (!keyCoincidente || !Array.isArray(guiaEPG[keyCoincidente])) {
+        return 'Emisión en directo';
+      }
+
+      // 3. Obtener el evento según la hora actual
       const ahora = new Date();
-      const actual = guiaEPG[keyEpg].find(ev => {
+      const eventos = guiaEPG[keyCoincidente];
+
+      const actual = eventos.find(ev => {
         const ini = new Date(ev.start || ev.inicio);
         const fin = new Date(ev.end || ev.fin);
         return ahora >= ini && ahora <= fin;
       });
 
       if (actual) {
-        const horaIni = new Date(actual.start || actual.inicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return `${horaIni} - ${actual.title || actual.nombre}`;
+        const dateIni = new Date(actual.start || actual.inicio);
+        const horaIni = dateIni.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const titulo = actual.title || actual.nombre || 'Directo';
+        return `${horaIni} - ${titulo}`;
       }
 
       return 'Emisión en directo';
@@ -274,7 +307,7 @@
         const epg = obtenerInfoEPG(c).toLowerCase();
         const coincideTexto = (c.title || '').toLowerCase().includes(q) || epg.includes(q);
         const coincideGrupo = !grp || c.group === grp;
-        return coincideTexto && coincideGrupo;
+        return coincideNombre && coincideGrupo;
       });
 
       renderizarCanales(filtrados);
