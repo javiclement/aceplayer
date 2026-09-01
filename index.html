@@ -3,35 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IPTV & AceStream Hub</title>
+  <title>AceStream Web Hub</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0f0f12;
-      color: #f0f0f0;
+      background: #0d0e12;
+      color: #f3f4f6;
       font-family: system-ui, -apple-system, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
 
-    /* Reproductor superior */
     header {
       background: #000;
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
       display: flex;
       flex-direction: column;
       align-items: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.8);
     }
     .video-box {
       width: 100%;
-      max-width: 900px;
+      max-width: 960px;
       aspect-ratio: 16 / 9;
-      background: #050505;
+      background: #000;
     }
     video {
       width: 100%;
@@ -40,9 +39,9 @@
     }
     .player-info {
       width: 100%;
-      max-width: 900px;
+      max-width: 960px;
       padding: 10px 16px;
-      background: #18181b;
+      background: #181920;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -57,7 +56,6 @@
       font-size: 11px;
     }
 
-    /* Barra de herramientas */
     .toolbar {
       max-width: 1200px;
       width: 100%;
@@ -69,17 +67,16 @@
     }
     input, select {
       padding: 10px 14px;
-      background: #1e1e24;
-      border: 1px solid #2e2e38;
+      background: #181920;
+      border: 1px solid #2d2e3a;
       border-radius: 8px;
       color: #fff;
       font-size: 14px;
       outline: none;
     }
-    input { flex: 1; min-width: 200px; }
+    input { flex: 1; min-width: 220px; }
     input:focus, select:focus { border-color: #ff8800; }
 
-    /* Parrilla de canales */
     .channels-grid {
       max-width: 1200px;
       width: 100%;
@@ -87,29 +84,29 @@
       padding: 0 16px 40px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 14px;
+      gap: 12px;
     }
     .channel-card {
-      background: #18181b;
-      border: 1px solid #27272a;
+      background: #181920;
+      border: 1px solid #262733;
       border-radius: 10px;
       padding: 12px;
       display: flex;
       align-items: center;
       gap: 12px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: transform 0.15s ease, border-color 0.15s ease;
     }
     .channel-card:hover {
-      background: #27272a;
+      background: #20222c;
       border-color: #ff8800;
       transform: translateY(-2px);
     }
     .channel-logo {
-      width: 48px;
-      height: 48px;
+      width: 46px;
+      height: 46px;
       object-fit: contain;
-      background: #09090b;
+      background: #0d0e12;
       border-radius: 6px;
       padding: 4px;
       flex-shrink: 0;
@@ -124,21 +121,11 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: #fff;
-    }
-    .channel-epg {
-      font-size: 12px;
-      color: #a1a1aa;
-      margin-top: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .channel-group {
-      font-size: 10px;
-      color: #71717a;
-      text-transform: uppercase;
-      margin-top: 2px;
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 3px;
     }
   </style>
 </head>
@@ -149,103 +136,69 @@
       <video id="player" controls autoplay playsinline></video>
     </div>
     <div class="player-info">
-      <div>
-        <span id="now-playing" style="font-weight: bold;">Selecciona un canal</span>
-        <span id="now-epg" style="color: #a1a1aa; margin-left: 8px;"></span>
-      </div>
+      <span id="now-playing" style="font-weight: bold;">Selecciona un canal de la lista</span>
       <span id="status-badge" class="badge" style="display:none;">EN VIVO</span>
     </div>
   </header>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanales()">
+    <input type="text" id="search" placeholder="Buscar canal..." oninput="filtrarCanales()">
     <select id="group-filter" onchange="filtrarCanales()">
       <option value="">Todas las categorías</option>
     </select>
   </div>
 
   <div class="channels-grid" id="grid">
-    <p style="padding: 20px; color: #888;">Cargando lista de canales y programación...</p>
+    <p style="padding: 20px; color: #888;">Cargando canales...</p>
   </div>
 
   <script>
     const ACE_SERVER_IP = '192.168.1.14';
+    const TARGET_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
     
-    // URL original del JSON
-    const RAW_CHANNELS_URL = 'https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json';
-    // Pasa por proxy CORS para evitar el bloqueo del navegador
-    const CHANNELS_JSON_URL = `https://corsproxy.io/?url=${encodeURIComponent(RAW_CHANNELS_URL)}`;
-    
-    // Feed EPG público compatible
-    const EPG_API_URL = 'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.json';
+    // Lista de proxies de respaldo
+    const PROXIES = [
+      'hashes.json', // Intento local (si existe en tu propio repo)
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(TARGET_URL)}`,
+      `https://corsproxy.io/?url=${encodeURIComponent(TARGET_URL)}`,
+      `https://thingproxy.freeboard.io/fetch/${TARGET_URL}`
+    ];
 
     let listaCanales = [];
-    let guiaEPG = {};
     let hls = null;
+
+    async function descargarJson() {
+      for (const url of PROXIES) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data && data.hashes && Array.isArray(data.hashes)) {
+            return data.hashes;
+          }
+        } catch (e) {
+          console.warn('Fallo al cargar desde:', url);
+        }
+      }
+      return null;
+    }
 
     async function init() {
       const grid = document.getElementById('grid');
-      grid.innerHTML = '<p style="padding: 20px; color: #888;">Cargando lista de canales y programación...</p>';
+      const hashes = await descargarJson();
 
-      try {
-        let resCanalesData = null;
-
-        // Intentar descargar canales con proxy primario
-        try {
-          const res = await fetch(CHANNELS_JSON_URL);
-          resCanalesData = await res.json();
-        } catch (e) {
-          // Fallback con proxy secundario por si falla el primero
-          const resFallback = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(RAW_CHANNELS_URL)}`);
-          resCanalesData = await resFallback.json();
-        }
-
-        // Descarga de la guía EPG en paralelo
-        try {
-          const resEpg = await fetch(EPG_API_URL);
-          guiaEPG = await resEpg.json();
-        } catch (e) {
-          console.warn('No se pudo cargar la EPG, se mostrará sin guía.', e);
-        }
-
-        if (resCanalesData && resCanalesData.hashes) {
-          listaCanales = resCanalesData.hashes;
-          poblarFiltroGrupos();
-          renderizarCanales(listaCanales);
-        } else {
-          grid.innerHTML = '<p style="color:#f55; padding: 20px;">No se encontraron canales en el JSON.</p>';
-        }
-      } catch (err) {
-        console.error(err);
-        grid.innerHTML = '<p style="color:#f55; padding: 20px;">Error al conectar con la fuente de canales. Revisa la consola (F12).</p>';
+      if (hashes && hashes.length > 0) {
+        listaCanales = hashes;
+        poblarFiltroGrupos();
+        renderizarCanales(listaCanales);
+      } else {
+        grid.innerHTML = `
+          <div style="padding: 20px; color: #f87171;">
+            <p><strong>No se pudo obtener la lista remota directamente por bloqueo anti-bot de git.gay.</strong></p>
+            <p style="margin-top:8px; font-size:13px; color:#aaa;">Crea el archivo <code>hashes.json</code> en tu propio repositorio de GitHub con el contenido del enlace para que cargue instantáneamente.</p>
+          </div>
+        `;
       }
-    }
-
-    function normalizarTexto(texto) {
-      return (texto || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    }
-
-    function obtenerEPGActual(canal) {
-      if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
-
-      const canalIdNorm = normalizarTexto(canal.tvg_id || canal.title);
-      // Buscar coincidencia en la clave del objeto EPG
-      const keyEpg = Object.keys(guiaEPG).find(k => normalizarTexto(k).includes(canalIdNorm) || canalIdNorm.includes(normalizarTexto(k)));
-
-      if (!keyEpg || !guiaEPG[keyEpg]) return 'Emisión en directo';
-
-      const ahora = new Date();
-      const eventos = guiaEPG[keyEpg];
-
-      if (!Array.isArray(eventos)) return 'Emisión en directo';
-
-      const actual = eventos.find(ev => {
-        const inicio = new Date(ev.start || ev.inicio);
-        const fin = new Date(ev.end || ev.fin);
-        return ahora >= inicio && ahora <= fin;
-      });
-
-      return actual ? (actual.title || actual.nombre || 'Directo') : 'Emisión en directo';
     }
 
     function poblarFiltroGrupos() {
@@ -265,23 +218,21 @@
       grid.innerHTML = '';
 
       if (canales.length === 0) {
-        grid.innerHTML = '<p style="color:#aaa; padding: 20px;">No se encontraron canales que coincidan con la búsqueda.</p>';
+        grid.innerHTML = '<p style="color:#aaa; padding: 20px;">No se encontraron canales.</p>';
         return;
       }
 
       canales.forEach(canal => {
-        const epgText = obtenerEPGActual(canal);
-        const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
-
         const card = document.createElement('div');
         card.className = 'channel-card';
-        card.onclick = () => reproducir(canal, epgText);
+        card.onclick = () => reproducir(canal);
+
+        const logoUrl = canal.logo || 'https://via.placeholder.com/46?text=TV';
 
         card.innerHTML = `
-          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
+          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/46?text=TV'" loading="lazy">
           <div class="channel-details">
             <div class="channel-title" title="${canal.title}">${canal.title}</div>
-            <div class="channel-epg" title="${epgText}">📺 ${epgText}</div>
             <div class="channel-group">${canal.group || 'GENERAL'}</div>
           </div>
         `;
@@ -302,12 +253,11 @@
       renderizarCanales(filtrados);
     }
 
-    function reproducir(canal, epgText) {
+    function reproducir(canal) {
       const video = document.getElementById('player');
       const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
 
       document.getElementById('now-playing').innerText = canal.title;
-      document.getElementById('now-epg').innerText = `(${epgText})`;
       document.getElementById('status-badge').style.display = 'inline-block';
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
