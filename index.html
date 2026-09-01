@@ -128,8 +128,35 @@
       margin-top: 3px;
       white-space: nowrap;
       overflow: hidden;
-      text-overflow: ellipsis;
       font-weight: 500;
+      position: relative;
+    }
+
+    .channel-epg span {
+      display: inline-block;
+      white-space: nowrap;
+      transition: transform 0.3s ease;
+    }
+
+    /* Al pasar el ratón por la tarjeta, el texto se desplaza suavemente si es largo */
+    .channel-card:hover .channel-epg span {
+      display: inline-block;
+      animation: desplazarTexto 6s linear infinite;
+    }
+
+    @keyframes desplazarTexto {
+      0% {
+        transform: translateX(0%);
+      }
+      20% {
+        transform: translateX(0%); /* Pausa inicial para poder leer el inicio */
+      }
+      80% {
+        transform: translateX(-50%); /* Se desplaza hacia la izquierda */
+      }
+      100% {
+        transform: translateX(0%);
+      }
     }
     .channel-group {
       font-size: 11px;
