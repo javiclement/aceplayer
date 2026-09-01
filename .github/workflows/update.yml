@@ -1,10 +1,10 @@
-name: Actualizar hashes.json
+name: Actualizar hashes.json y EPG
 
 on:
   schedule:
-    # Se ejecuta de forma automática cada 2 horas
+    # Se ejecuta cada 2 horas
     - cron: '0 */2 * * *'
-  workflow_dispatch: # Permite forzar la ejecución manual cuando quieras
+  workflow_dispatch:
 
 jobs:
   update-json:
@@ -13,14 +13,18 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Obtener JSON original
+      - name: Obtener JSON original y EPG
         run: |
+          # Descargar lista de hashes
           curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
           "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o hashes.json
+
+          # Descargar guía EPG estructurada en JSON
+          curl -sSL "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.json" -o epg.json
 
       - name: Guardar cambios si hay novedades
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add hashes.json
-          git diff --staged --quiet || (git commit -m "Auto-update hashes.json" && git push)
+          git add hashes.json epg.json
+          git diff --staged --quiet || (git commit -m "Auto-update hashes and EPG" && git push)
