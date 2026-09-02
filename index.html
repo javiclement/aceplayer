@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AceStream Web Hub Pro</title>
+  <title>AceStream Web Hub</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,7 +16,6 @@
       flex-direction: column;
     }
 
-    /* Reproductor superior fijo */
     header {
       background: #000;
       position: sticky;
@@ -25,14 +24,13 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.85);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.8);
     }
     .video-box {
       width: 100%;
       max-width: 960px;
       aspect-ratio: 16 / 9;
       background: #000;
-      position: relative;
     }
     video {
       width: 100%;
@@ -47,31 +45,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
       font-size: 14px;
-      flex-wrap: wrap;
     }
-    .player-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .btn-action {
-      background: #272730;
-      border: 1px solid #3f3f4e;
-      color: #fff;
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      text-decoration: none;
-      transition: background 0.15s;
-    }
-    .btn-action:hover { background: #383846; }
-
     .badge {
       background: #ff8800;
       color: #000;
@@ -81,34 +56,14 @@
       font-size: 11px;
     }
 
-    /* Barra de estado del servidor */
-    .server-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #aaa;
-    }
-    .status-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #888;
-      display: inline-block;
-    }
-    .status-dot.online { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
-    .status-dot.offline { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
-
-    /* Barra de búsqueda y filtros */
     .toolbar {
-      max-width: 1240px;
+      max-width: 1200px;
       width: 100%;
-      margin: 16px auto 10px;
+      margin: 16px auto;
       padding: 0 16px;
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      align-items: center;
     }
     input, select {
       padding: 10px 14px;
@@ -122,33 +77,13 @@
     input { flex: 1; min-width: 220px; }
     input:focus, select:focus { border-color: #ff8800; }
 
-    .btn-fav-filter {
-      padding: 10px 14px;
-      background: #181920;
-      border: 1px solid #2d2e3a;
-      border-radius: 8px;
-      color: #eab308;
-      font-weight: bold;
-      font-size: 14px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn-fav-filter.active {
-      background: #ca8a04;
-      color: #000;
-      border-color: #ca8a04;
-    }
-
-    /* Parrilla de canales */
     .channels-grid {
-      max-width: 1240px;
+      max-width: 1200px;
       width: 100%;
       margin: 0 auto;
-      padding: 10px 16px 50px;
+      padding: 0 16px 40px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 12px;
     }
     .channel-card {
@@ -157,20 +92,15 @@
       border-radius: 10px;
       padding: 12px;
       display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: relative;
-      transition: border-color 0.15s ease;
-    }
-    .channel-card:hover {
-      border-color: #ff8800;
-    }
-
-    .card-main {
-      display: flex;
       align-items: center;
       gap: 12px;
       cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .channel-card:hover {
+      background: #20222c;
+      border-color: #ff8800;
+      transform: translateY(-2px);
     }
     .channel-logo {
       width: 48px;
@@ -185,100 +115,53 @@
       flex: 1;
       overflow: hidden;
     }
-    .channel-header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
     .channel-title {
       font-size: 14px;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: #fff;
     }
-    .star-btn {
-      background: none;
-      border: none;
-      font-size: 18px;
-      color: #4b5563;
-      cursor: pointer;
-      padding: 2px 6px;
-      line-height: 1;
-      transition: color 0.15s;
-    }
-    .star-btn.fav { color: #eab308; }
-
-    /* EPG con marquesina en hover */
     .channel-epg {
       font-size: 12px;
       color: #fb923c;
+      margin-top: 3px;
       white-space: nowrap;
       overflow: hidden;
       font-weight: 500;
       position: relative;
-      margin-top: 2px;
     }
+
     .channel-epg span {
       display: inline-block;
       white-space: nowrap;
+      transition: transform 0.3s ease;
     }
+
+    /* Al pasar el ratón por la tarjeta, el texto se desplaza suavemente si es largo */
     .channel-card:hover .channel-epg span {
-      animation: marquee 6s linear infinite;
-    }
-    @keyframes marquee {
-      0% { transform: translateX(0%); }
-      20% { transform: translateX(0%); }
-      80% { transform: translateX(-50%); }
-      100% { transform: translateX(0%); }
+      display: inline-block;
+      animation: desplazarTexto 6s linear infinite;
     }
 
-    /* Barra de progreso de emisión EPG */
-    .progress-bar-container {
-      width: 100%;
-      height: 3px;
-      background: #272733;
-      border-radius: 2px;
-      overflow: hidden;
-      margin-top: 2px;
+    @keyframes desplazarTexto {
+      0% {
+        transform: translateX(0%);
+      }
+      20% {
+        transform: translateX(0%); /* Pausa inicial para poder leer el inicio */
+      }
+      80% {
+        transform: translateX(-50%); /* Se desplaza hacia la izquierda */
+      }
+      100% {
+        transform: translateX(0%);
+      }
     }
-    .progress-bar-fill {
-      height: 100%;
-      background: #f97316;
-      width: 0%;
-      transition: width 0.3s;
-    }
-
-    /* Botones de calidad multi-stream */
-    .quality-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-      border-top: 1px solid #232430;
-      padding-top: 8px;
-    }
-    .quality-chip {
-      background: #232530;
-      color: #cbd5e1;
-      border: 1px solid #374151;
-      border-radius: 4px;
-      padding: 3px 8px;
+    .channel-group {
       font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .quality-chip:hover {
-      background: #ff8800;
-      color: #000;
-      border-color: #ff8800;
-    }
-    .quality-chip.active {
-      background: #ff8800;
-      color: #000;
-      border-color: #ff8800;
+      color: #9ca3af;
+      margin-top: 2px;
     }
   </style>
 </head>
@@ -293,21 +176,12 @@
         <span id="now-playing" style="font-weight: bold;">Selecciona un canal</span>
         <span id="now-epg" style="color: #fb923c; margin-left: 8px; font-size: 13px;"></span>
       </div>
-      <div class="player-actions">
-        <span id="status-badge" class="badge" style="display:none;">EN VIVO</span>
-        <button id="btn-pip" class="btn-action" onclick="togglePiP()" title="Modo PiP (Ventana flotante)">🗔 PiP</button>
-        <button id="btn-vlc" class="btn-action" onclick="abrirEnVLC()" title="Abrir en VLC o Reproductor Externo">▶ VLC</button>
-      </div>
+      <span id="status-badge" class="badge" style="display:none;">EN VIVO</span>
     </div>
   </header>
 
   <div class="toolbar">
-    <div class="server-status" title="Estado de conexión con tu AceStream Docker">
-      <span id="server-dot" class="status-dot"></span>
-      <span id="server-text">Comprobando server...</span>
-    </div>
     <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanales()">
-    <button id="filter-favs" class="btn-fav-filter" onclick="toggleFiltroFavoritos()">⭐ Favoritos</button>
     <select id="group-filter" onchange="filtrarCanales()">
       <option value="">Todas las categorías</option>
     </select>
@@ -319,37 +193,17 @@
 
   <script>
     const ACE_SERVER_IP = '192.168.1.14';
-    const ACE_PORT = '6878';
-    
-    // Logo SVG local en memoria para no depender de servidores externos ni saturar la red
-    const FALLBACK_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%23555'%3E%3Cpath d='M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z'/%3E%3C/svg%3E";
-
-    let canalesAgrupados = [];
+    let listaCanales = [];
     let guiaEPG = {};
     let hls = null;
-    let streamActualUrl = '';
-    let soloFavoritos = false;
-    let favoritos = JSON.parse(localStorage.getItem('ace_favoritos') || '[]');
 
-    function extraerNombreBase(title) {
-      if (!title) return 'Canal';
-      return title
-        .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|multi|feed)\b/gi, '')
-        .replace(/[\*\_\-\.\(\)\[\]\+]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    function extraerEtiquetaCalidad(title) {
-      const match = title.match(/(1080p|720p|4k|576p|fhd|hd)[\s\*]*/i);
-      const asteriscos = (title.match(/\*+/g) || [''])[0];
-      if (match) return match[0].trim();
-      if (asteriscos) return asteriscos;
-      return 'Directo';
-    }
-
-    function limpiarTextoComparacion(str) {
-      return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    function limpiar(str) {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|multi|feed)\b/g, '')
+        .replace(/[\*\_\-\.\(\)\[\]\+]/g, '')
+        .replace(/[^a-z0-9]/g, '');
     }
 
     async function init() {
@@ -365,68 +219,39 @@
         }
 
         if (resCanales.status === 'fulfilled' && resCanales.value.hashes) {
-          procesarYAgruparCanales(resCanales.value.hashes);
+          listaCanales = resCanales.value.hashes;
           poblarFiltroGrupos();
-          renderizarCanales(canalesAgrupados);
+          renderizarCanales(listaCanales);
         } else {
-          grid.innerHTML = '<p style="color:#f55; padding:20px;">No se encontraron canales en hashes.json.</p>';
+          grid.innerHTML = '<p style="color:#f55; padding:20px;">No se pudieron cargar los canales.</p>';
         }
       } catch (err) {
-        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error al cargar datos.</p>';
+        grid.innerHTML = '<p style="color:#f55; padding:20px;">Error al inicializar.</p>';
       }
     }
 
-    function procesarYAgruparCanales(hashes) {
-      const mapa = new Map();
-
-      hashes.forEach(c => {
-        const baseName = extraerNombreBase(c.tvg_id || c.title);
-        const grupo = c.group || 'GENERAL';
-        const key = `${baseName}___${grupo}`;
-
-        if (!mapa.has(key)) {
-          mapa.set(key, {
-            id: key,
-            name: baseName,
-            tvg_id: c.tvg_id || baseName,
-            group: grupo,
-            logo: c.logo || FALLBACK_LOGO,
-            streams: []
-          });
-        }
-
-        mapa.get(key).streams.push({
-          fullTitle: c.title,
-          qualityTag: extraerEtiquetaCalidad(c.title),
-          hash: c.hash
-        });
-      });
-
-      canalesAgrupados = Array.from(mapa.values());
-    }
-
     function obtenerInfoEPG(canal) {
-      if (!guiaEPG || Object.keys(guiaEPG).length === 0) return { texto: 'Directo', progreso: 0 };
+      if (!guiaEPG || Object.keys(guiaEPG).length === 0) return 'Directo';
 
-      const ref1 = limpiarTextoComparacion(canal.tvg_id);
-      const ref2 = limpiarTextoComparacion(canal.name);
+      const ref1 = limpiar(canal.tvg_id);
+      const ref2 = limpiar(canal.title);
 
       const keys = Object.keys(guiaEPG);
       let matchedKey = keys.find(k => {
-        const kL = limpiarTextoComparacion(k);
-        return (ref1 && kL === ref1) || (ref2 && kL === ref2);
+        const kLimpia = limpiar(k);
+        return (ref1 && kLimpia === ref1) || (ref2 && kLimpia === ref2);
       });
 
       if (!matchedKey) {
         matchedKey = keys.find(k => {
-          const kL = limpiarTextoComparacion(k);
-          return (ref1 && (kL.includes(ref1) || ref1.includes(kL))) ||
-                 (ref2 && (kL.includes(ref2) || ref2.includes(kL)));
+          const kLimpia = limpiar(k);
+          return (ref1 && (kLimpia.includes(ref1) || ref1.includes(kLimpia))) ||
+                 (ref2 && (kLimpia.includes(ref2) || ref2.includes(kLimpia)));
         });
       }
 
       if (!matchedKey || !Array.isArray(guiaEPG[matchedKey])) {
-        return { texto: 'Directo', progreso: 0 };
+        return 'Directo';
       }
 
       const ahora = new Date();
@@ -437,38 +262,15 @@
       });
 
       if (actual) {
-        const dIni = new Date(actual.start);
-        const dFin = new Date(actual.end);
-        const total = dFin - dIni;
-        const transcurrido = ahora - dIni;
-        const progreso = Math.min(100, Math.max(0, Math.round((transcurrido / total) * 100)));
-        const horaIni = dIni.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return { texto: `${horaIni} - ${actual.title}`, progreso: progreso };
+        const horaIni = new Date(actual.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${horaIni} - ${actual.title}`;
       }
 
-      return { texto: 'Directo', progreso: 0 };
-    }
-
-    function toggleFavorito(id, event) {
-      if (event) event.stopPropagation();
-      if (favoritos.includes(id)) {
-        favoritos = favoritos.filter(f => f !== id);
-      } else {
-        favoritos.push(id);
-      }
-      localStorage.setItem('ace_favoritos', JSON.stringify(favoritos));
-      filtrarCanales();
-    }
-
-    function toggleFiltroFavoritos() {
-      soloFavoritos = !soloFavoritos;
-      const btn = document.getElementById('filter-favs');
-      if (btn) btn.classList.toggle('active', soloFavoritos);
-      filtrarCanales();
+      return 'Directo';
     }
 
     function poblarFiltroGrupos() {
-      const grupos = [...new Set(canalesAgrupados.map(c => c.group).filter(Boolean))].sort();
+      const grupos = [...new Set(listaCanales.map(c => c.group).filter(Boolean))].sort();
       const select = document.getElementById('group-filter');
       select.innerHTML = '<option value="">Todas las categorías</option>';
       grupos.forEach(g => {
@@ -484,150 +286,64 @@
       grid.innerHTML = '';
 
       if (canales.length === 0) {
-        grid.innerHTML = '<p style="color:#aaa; padding: 20px;">No hay canales para mostrar.</p>';
+        grid.innerHTML = '<p style="color:#aaa; padding: 20px;">No se encontraron canales.</p>';
         return;
       }
 
-      canales.forEach((canal, idx) => {
-        const epgData = obtenerInfoEPG(canal);
-        const isFav = favoritos.includes(canal.id);
+      canales.forEach(canal => {
+        const epgTexto = obtenerInfoEPG(canal);
         const card = document.createElement('div');
         card.className = 'channel-card';
+        card.onclick = () => reproducir(canal, epgTexto);
 
-        // Prevenir bucles infinitos en imágenes rotas usando una sola asignación
+        const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
+
         card.innerHTML = `
-          <div class="card-main" id="card-main-${idx}">
-            <img class="channel-logo" src="${canal.logo}" onerror="this.onerror=null; this.src='${FALLBACK_LOGO}'" loading="lazy">
-            <div class="channel-details">
-              <div class="channel-header-row">
-                <span class="channel-title" title="${canal.name}">${canal.name}</span>
-                <button class="star-btn ${isFav ? 'fav' : ''}" id="star-${idx}">★</button>
-              </div>
-              <div class="channel-epg" title="${epgData.texto}"><span>▶ ${epgData.texto}</span></div>
-              <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: ${epgData.progreso}%;"></div>
-              </div>
-            </div>
+          <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
+          <div class="channel-details">
+            <div class="channel-title" title="${canal.title}">${canal.title}</div>
+            <div class="channel-epg" title="${epgTexto}"><span>▶ ${epgTexto}</span></div>
+            <div class="channel-group">${canal.group || 'GENERAL'}</div>
           </div>
-          <div class="quality-chips" id="chips-${idx}"></div>
         `;
-
         grid.appendChild(card);
-
-        // Click en la estrella
-        card.querySelector(`#star-${idx}`).onclick = (e) => toggleFavorito(canal.id, e);
-
-        // Click en la tarjeta principal (reproduce la primera calidad disponible)
-        card.querySelector(`#card-main-${idx}`).onclick = (e) => reproducirCanal(idx, 0);
-
-        // Generar botones de calidad
-        const chipsBox = card.querySelector(`#chips-${idx}`);
-        canal.streams.forEach((st, sIdx) => {
-          const btn = document.createElement('button');
-          btn.className = 'quality-chip' + (sIdx === 0 ? ' active' : '');
-          btn.innerText = st.qualityTag;
-          btn.onclick = (e) => {
-            e.stopPropagation();
-            reproducirCanal(idx, sIdx);
-          };
-          chipsBox.appendChild(btn);
-        });
       });
-    }
-
-    function reproducirCanal(canalIdx, streamIdx) {
-      const canal = canalesAgrupados[canalIdx];
-      if (!canal || !canal.streams[streamIdx]) return;
-
-      const stream = canal.streams[streamIdx];
-      const epgData = obtenerInfoEPG(canal);
-
-      // Actualizar chip activo visualmente
-      const chipsBox = document.getElementById(`chips-${canalIdx}`);
-      if (chipsBox) {
-        chipsBox.querySelectorAll('.quality-chip').forEach(b => b.classList.remove('active'));
-        if (chipsBox.children[streamIdx]) chipsBox.children[streamIdx].classList.add('active');
-      }
-
-      const video = document.getElementById('player');
-      streamActualUrl = `http://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?id=${stream.hash}`;
-
-      document.getElementById('now-playing').innerText = `${canal.name} (${stream.qualityTag})`;
-      document.getElementById('now-epg').innerText = (epgData.texto !== 'Directo') ? `(${epgData.texto})` : '';
-      const badge = document.getElementById('status-badge');
-      badge.style.display = 'inline-block';
-      badge.innerText = 'CONECTANDO...';
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      if (hls) {
-        hls.destroy();
-        hls = null;
-      }
-
-      if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.loadSource(streamActualUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          badge.innerText = 'EN VIVO';
-          video.play().catch(() => {
-            badge.innerText = 'PULSA PLAY';
-          });
-        });
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) badge.innerText = 'ERROR STREAM';
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamActualUrl;
-        video.play().catch(() => {});
-      }
     }
 
     function filtrarCanales() {
       const q = document.getElementById('search').value.toLowerCase();
       const grp = document.getElementById('group-filter').value;
 
-      const filtrados = canalesAgrupados.filter(c => {
-        const esFav = !soloFavoritos || favoritos.includes(c.id);
-        const epg = obtenerInfoEPG(c).texto.toLowerCase();
-        const coincideTexto = c.name.toLowerCase().includes(q) || epg.includes(q);
+      const filtrados = listaCanales.filter(c => {
+        const epg = obtenerInfoEPG(c).toLowerCase();
+        const coincideTexto = (c.title || '').toLowerCase().includes(q) || epg.includes(q);
         const coincideGrupo = !grp || c.group === grp;
-        return esFav && coincideTexto && coincideGrupo;
+        return coincideTexto && coincideGrupo;
       });
 
       renderizarCanales(filtrados);
     }
 
-    async function togglePiP() {
+    function reproducir(canal, epgTexto) {
       const video = document.getElementById('player');
-      try {
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture();
-        } else if (video.requestPictureInPicture) {
-          await video.requestPictureInPicture();
-        }
-      } catch (err) {
-        console.warn('PiP no soportado en este navegador');
-      }
-    }
+      const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
 
-    function abrirEnVLC() {
-      if (!streamActualUrl) {
-        alert('Selecciona primero un canal.');
-        return;
-      }
+      document.getElementById('now-playing').innerText = canal.title;
+      document.getElementById('now-epg').innerText = epgTexto !== 'Directo' ? epgTexto : '';
+      document.getElementById('status-badge').style.display = 'inline-block';
 
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      if (isAndroid) {
-        const queryParams = streamActualUrl.split('?')[1] || '';
-        window.location.href = `intent://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?${queryParams}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
-      } else {
-        navigator.clipboard.writeText(streamActualUrl).then(() => {
-          alert('¡Enlace copiado al portapapeles!\n\nAbre VLC y pulsa Ctrl+V en "Abrir emisión de red".');
-        }).catch(() => {
-          prompt('Copia esta URL en VLC:', streamActualUrl);
-        });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (hls) hls.destroy();
+
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play();
       }
     }
 
