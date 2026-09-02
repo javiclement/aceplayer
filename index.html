@@ -328,9 +328,8 @@
     let soloFavoritos = false;
     let favoritos = JSON.parse(localStorage.getItem('ace_favoritos') || '[]');
 
-    // Normaliza nombres para eliminar calidades (*, **, 1080p, 720p)
     function extraerNombreBase(title) {
-      if (!title) return 'Sin nombre';
+      if (!title) return 'Canal';
       return title
         .replace(/\b(1080p|720p|576p|4k|uhd|fhd|hd|sd|hevc|multi|feed)\b/gi, '')
         .replace(/[\*\_\-\.\(\)\[\]\+]/g, ' ')
@@ -350,31 +349,7 @@
       return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
-    // Healthcheck para el servidor AceStream
-    async function testServidorAceStream() {
-      const dot = document.getElementById('server-dot');
-      const text = document.getElementById('server-text');
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        // Petición al endpoint HTTP de AceStream
-        await fetch(`http://${ACE_SERVER_IP}:${ACE_PORT}/webui/api/service?method=get_version`, {
-          mode: 'no-cors',
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        dot.className = 'status-dot online';
-        text.innerText = 'AceStream Conectado';
-      } catch (e) {
-        dot.className = 'status-dot offline';
-        text.innerText = 'AceStream Inaccesible';
-      }
-    }
-
     async function init() {
-      testServidorAceStream();
-      setInterval(testServidorAceStream, 30000); // Comprueba cada 30s
-
       const grid = document.getElementById('grid');
       try {
         const [resCanales, resEpg] = await Promise.allSettled([
@@ -390,6 +365,12 @@
           procesarYAgruparCanales(resCanales.value.hashes);
           poblarFiltroGrupos();
           renderizarCanales(canalesAgrupados);
+          
+          // Actualizar estado visual
+          const dot = document.getElementById('server-dot');
+          const text = document.getElementById('server-text');
+          if (dot) dot.className = 'status-dot online';
+          if (text) text.innerText = 'Listo (192.168.1.14)';
         } else {
           grid.innerHTML = '<p style="color:#f55; padding:20px;">No se encontraron canales.</p>';
         }
@@ -398,7 +379,6 @@
       }
     }
 
-    // Agrupa las múltiples calidades en una sola tarjeta
     function procesarYAgruparCanales(hashes) {
       const mapa = new Map();
 
@@ -515,7 +495,7 @@
         return;
       }
 
-      canales.forEach(canal => {
+      canales.forEach((canal, idx) => {
         const epgData = obtenerInfoEPG(canal);
         const isFav = favoritos.includes(canal.id);
         const card = document.createElement('div');
@@ -523,15 +503,9 @@
 
         const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
 
-        // Construir botones para cada calidad disponible
-        const chipsHtml = canal.streams.map(s => `
-          <button class="quality-chip" onclick="reproducirStream('${s.hash}', '${canal.name} (${s.qualityTag})', '${epgData.texto}', this, event)">
-            ${s.qualityTag}
-          </button>
-        `).join('');
-
+        // Estructura limpia pasando índices en lugar de cadenas largas para evitar romper el HTML
         card.innerHTML = `
-          <div class="card-main" onclick="reproducirStream('${canal.streams[0].hash}', '${canal.name} (${canal.streams[0].qualityTag})', '${epgData.texto}', this.parentNode.querySelector('.quality-chip'), event)">
+          <div class="card-main" onclick="reproducirCanalPorIndice(${idx}, 0, event)">
             <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
             <div class="channel-details">
               <div class="channel-header-row">
@@ -544,12 +518,97 @@
               </div>
             </div>
           </div>
-          <div class="quality-chips">
-            ${chipsHtml}
-          </div>
+          <div class="quality-chips" id="chips-${idx}"></div>
         `;
+
         grid.appendChild(card);
+
+        // Añadir los chips mediante DOM para evitar problemas de comillas en nombres
+        const chipsContainer = card.querySelector(`#chips-${idx}`);
+        canal.streams.forEach((s, sIdx) => {
+          const btn = document.createElement('button');
+          btn.className = 'quality-chip' + (sIdx === 0 ? ' active' : '');
+          btn.innerText = s.qualityTag;
+          btn.onclick = (e) => reproducirCanalPorIndice(idx, sIdx, e);
+          chipsContainer.appendChild(btn);
+        });
       });
+    }
+
+    function reproducirCanalPorIndice(canalIdx, streamIdx, event) {
+      if (event) event.stopPropagation();
+
+      const canal = canalesAgrupados[canalIdx];
+      if (!canal || !canal.streams[streamIdx]) return;
+
+      const stream = canal.streams[streamIdx];
+      const epgData = obtenerInfoEPG(canal);
+
+      // Resaltar chip seleccionado
+      document.querySelectorAll('.quality-chip').forEach(c => c.classList.remove('active'));
+      const chipsBox = document.getElementById(`chips-${canalIdx}`);
+      if (chipsBox && chipsBox.children[streamIdx]) {
+        chipsBox.children[streamIdx].classList.add('active');
+      }
+
+      iniciarHls(stream.hash, `${canal.name} (${stream.qualityTag})`, epgData.texto);
+    }
+
+    function iniciarHls(hash, titulo, epgTexto) {
+      const video = document.getElementById('player');
+      streamActualUrl = `http://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?id=${hash}`;
+
+      document.getElementById('now-playing').innerText = titulo;
+      document.getElementById('now-epg').innerText = (epgTexto && epgTexto !== 'Directo') ? `(${epgTexto})` : '';
+      document.getElementById('status-badge').style.display = 'inline-block';
+      document.getElementById('status-badge').innerText = 'CONECTANDO...';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      if (Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 60
+        });
+
+        hls.loadSource(streamActualUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          document.getElementById('status-badge').innerText = 'EN VIVO';
+          video.play().catch(() => {
+            document.getElementById('status-badge').innerText = 'PULSA PLAY';
+          });
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            document.getElementById('status-badge').innerText = 'REINTENTANDO';
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamActualUrl;
+        video.addEventListener('loadedmetadata', () => {
+          video.play().catch(() => {});
+        });
+      }
     }
 
     function filtrarCanales() {
@@ -567,35 +626,6 @@
       renderizarCanales(filtrados);
     }
 
-    function reproducirStream(hash, nombreDisplay, epgTexto, chipEl, event) {
-      if (event) event.stopPropagation();
-
-      document.querySelectorAll('.quality-chip').forEach(c => c.classList.remove('active'));
-      if (chipEl) chipEl.classList.add('active');
-
-      const video = document.getElementById('player');
-      streamActualUrl = `http://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?id=${hash}`;
-
-      document.getElementById('now-playing').innerText = nombreDisplay;
-      document.getElementById('now-epg').innerText = epgTexto !== 'Directo' ? epgTexto : '';
-      document.getElementById('status-badge').style.display = 'inline-block';
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      if (hls) hls.destroy();
-
-      if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.loadSource(streamActualUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamActualUrl;
-        video.play();
-      }
-    }
-
-    // Picture-in-Picture
     async function togglePiP() {
       const video = document.getElementById('player');
       try {
@@ -605,29 +635,31 @@
           await video.requestPictureInPicture();
         }
       } catch (err) {
-        console.error('Error al activar PiP:', err);
+        console.error('Error PiP:', err);
       }
     }
 
-    // Lanzador VLC inteligente
     function abrirEnVLC() {
       if (!streamActualUrl) {
-        alert('Primero selecciona un canal para reproducir.');
+        alert('Selecciona primero un canal.');
         return;
       }
 
       const isAndroid = /Android/i.test(navigator.userAgent);
       if (isAndroid) {
-        // Enlace Intent nativo para abrir la app de VLC en Android
-        const intentUrl = `intent://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?${streamActualUrl.split('?')[1]}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
+        const queryParams = streamActualUrl.split('?')[1] || '';
+        const intentUrl = `intent://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?${queryParams}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
         window.location.href = intentUrl;
       } else {
-        // Copiar enlace al portapapeles en PC/iOS
-        navigator.clipboard.writeText(streamActualUrl).then(() => {
-          alert('¡Enlace del stream copiado al portapapeles!\n\nAbre VLC > Medio > Abrir emisión de red (Ctrl+V) y pulsa Reproducir.');
-        }).catch(() => {
-          prompt('Copia esta URL y pégala en VLC:', streamActualUrl);
-        });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(streamActualUrl).then(() => {
+            alert('¡Enlace copiado al portapapeles!\n\nAbre VLC y pulsa Ctrl+V en "Abrir emisión de red".');
+          }).catch(() => {
+            prompt('Copia esta URL en VLC:', streamActualUrl);
+          });
+        } else {
+          prompt('Copia esta URL en VLC:', streamActualUrl);
+        }
       }
     }
 
