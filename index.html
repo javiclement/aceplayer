@@ -321,6 +321,9 @@
     const ACE_SERVER_IP = '192.168.1.14';
     const ACE_PORT = '6878';
     
+    // Logo SVG local en memoria para no depender de servidores externos ni saturar la red
+    const FALLBACK_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%23555'%3E%3Cpath d='M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z'/%3E%3C/svg%3E";
+
     let canalesAgrupados = [];
     let guiaEPG = {};
     let hls = null;
@@ -365,14 +368,8 @@
           procesarYAgruparCanales(resCanales.value.hashes);
           poblarFiltroGrupos();
           renderizarCanales(canalesAgrupados);
-          
-          // Actualizar estado visual
-          const dot = document.getElementById('server-dot');
-          const text = document.getElementById('server-text');
-          if (dot) dot.className = 'status-dot online';
-          if (text) text.innerText = 'Listo (192.168.1.14)';
         } else {
-          grid.innerHTML = '<p style="color:#f55; padding:20px;">No se encontraron canales.</p>';
+          grid.innerHTML = '<p style="color:#f55; padding:20px;">No se encontraron canales en hashes.json.</p>';
         }
       } catch (err) {
         grid.innerHTML = '<p style="color:#f55; padding:20px;">Error al cargar datos.</p>';
@@ -393,7 +390,7 @@
             name: baseName,
             tvg_id: c.tvg_id || baseName,
             group: grupo,
-            logo: c.logo,
+            logo: c.logo || FALLBACK_LOGO,
             streams: []
           });
         }
@@ -453,7 +450,7 @@
     }
 
     function toggleFavorito(id, event) {
-      event.stopPropagation();
+      if (event) event.stopPropagation();
       if (favoritos.includes(id)) {
         favoritos = favoritos.filter(f => f !== id);
       } else {
@@ -466,11 +463,7 @@
     function toggleFiltroFavoritos() {
       soloFavoritos = !soloFavoritos;
       const btn = document.getElementById('filter-favs');
-      if (soloFavoritos) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
+      if (btn) btn.classList.toggle('active', soloFavoritos);
       filtrarCanales();
     }
 
@@ -501,16 +494,14 @@
         const card = document.createElement('div');
         card.className = 'channel-card';
 
-        const logoUrl = canal.logo || 'https://via.placeholder.com/48?text=TV';
-
-        // Estructura limpia pasando índices en lugar de cadenas largas para evitar romper el HTML
+        // Prevenir bucles infinitos en imágenes rotas usando una sola asignación
         card.innerHTML = `
-          <div class="card-main" onclick="reproducirCanalPorIndice(${idx}, 0, event)">
-            <img class="channel-logo" src="${logoUrl}" onerror="this.src='https://via.placeholder.com/48?text=TV'" loading="lazy">
+          <div class="card-main" id="card-main-${idx}">
+            <img class="channel-logo" src="${canal.logo}" onerror="this.onerror=null; this.src='${FALLBACK_LOGO}'" loading="lazy">
             <div class="channel-details">
               <div class="channel-header-row">
                 <span class="channel-title" title="${canal.name}">${canal.name}</span>
-                <button class="star-btn ${isFav ? 'fav' : ''}" onclick="toggleFavorito('${canal.id}', event)">★</button>
+                <button class="star-btn ${isFav ? 'fav' : ''}" id="star-${idx}">★</button>
               </div>
               <div class="channel-epg" title="${epgData.texto}"><span>▶ ${epgData.texto}</span></div>
               <div class="progress-bar-container">
@@ -523,45 +514,49 @@
 
         grid.appendChild(card);
 
-        // Añadir los chips mediante DOM para evitar problemas de comillas en nombres
-        const chipsContainer = card.querySelector(`#chips-${idx}`);
-        canal.streams.forEach((s, sIdx) => {
+        // Click en la estrella
+        card.querySelector(`#star-${idx}`).onclick = (e) => toggleFavorito(canal.id, e);
+
+        // Click en la tarjeta principal (reproduce la primera calidad disponible)
+        card.querySelector(`#card-main-${idx}`).onclick = (e) => reproducirCanal(idx, 0);
+
+        // Generar botones de calidad
+        const chipsBox = card.querySelector(`#chips-${idx}`);
+        canal.streams.forEach((st, sIdx) => {
           const btn = document.createElement('button');
           btn.className = 'quality-chip' + (sIdx === 0 ? ' active' : '');
-          btn.innerText = s.qualityTag;
-          btn.onclick = (e) => reproducirCanalPorIndice(idx, sIdx, e);
-          chipsContainer.appendChild(btn);
+          btn.innerText = st.qualityTag;
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            reproducirCanal(idx, sIdx);
+          };
+          chipsBox.appendChild(btn);
         });
       });
     }
 
-    function reproducirCanalPorIndice(canalIdx, streamIdx, event) {
-      if (event) event.stopPropagation();
-
+    function reproducirCanal(canalIdx, streamIdx) {
       const canal = canalesAgrupados[canalIdx];
       if (!canal || !canal.streams[streamIdx]) return;
 
       const stream = canal.streams[streamIdx];
       const epgData = obtenerInfoEPG(canal);
 
-      // Resaltar chip seleccionado
-      document.querySelectorAll('.quality-chip').forEach(c => c.classList.remove('active'));
+      // Actualizar chip activo visualmente
       const chipsBox = document.getElementById(`chips-${canalIdx}`);
-      if (chipsBox && chipsBox.children[streamIdx]) {
-        chipsBox.children[streamIdx].classList.add('active');
+      if (chipsBox) {
+        chipsBox.querySelectorAll('.quality-chip').forEach(b => b.classList.remove('active'));
+        if (chipsBox.children[streamIdx]) chipsBox.children[streamIdx].classList.add('active');
       }
 
-      iniciarHls(stream.hash, `${canal.name} (${stream.qualityTag})`, epgData.texto);
-    }
-
-    function iniciarHls(hash, titulo, epgTexto) {
       const video = document.getElementById('player');
-      streamActualUrl = `http://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?id=${hash}`;
+      streamActualUrl = `http://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?id=${stream.hash}`;
 
-      document.getElementById('now-playing').innerText = titulo;
-      document.getElementById('now-epg').innerText = (epgTexto && epgTexto !== 'Directo') ? `(${epgTexto})` : '';
-      document.getElementById('status-badge').style.display = 'inline-block';
-      document.getElementById('status-badge').innerText = 'CONECTANDO...';
+      document.getElementById('now-playing').innerText = `${canal.name} (${stream.qualityTag})`;
+      document.getElementById('now-epg').innerText = (epgData.texto !== 'Directo') ? `(${epgData.texto})` : '';
+      const badge = document.getElementById('status-badge');
+      badge.style.display = 'inline-block';
+      badge.innerText = 'CONECTANDO...';
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -571,43 +566,21 @@
       }
 
       if (Hls.isSupported()) {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 60
-        });
-
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.loadSource(streamActualUrl);
         hls.attachMedia(video);
-
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          document.getElementById('status-badge').innerText = 'EN VIVO';
+          badge.innerText = 'EN VIVO';
           video.play().catch(() => {
-            document.getElementById('status-badge').innerText = 'PULSA PLAY';
+            badge.innerText = 'PULSA PLAY';
           });
         });
-
         hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            document.getElementById('status-badge').innerText = 'REINTENTANDO';
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
-                break;
-              default:
-                hls.destroy();
-                break;
-            }
-          }
+          if (data.fatal) badge.innerText = 'ERROR STREAM';
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = streamActualUrl;
-        video.addEventListener('loadedmetadata', () => {
-          video.play().catch(() => {});
-        });
+        video.play().catch(() => {});
       }
     }
 
@@ -635,7 +608,7 @@
           await video.requestPictureInPicture();
         }
       } catch (err) {
-        console.error('Error PiP:', err);
+        console.warn('PiP no soportado en este navegador');
       }
     }
 
@@ -648,18 +621,13 @@
       const isAndroid = /Android/i.test(navigator.userAgent);
       if (isAndroid) {
         const queryParams = streamActualUrl.split('?')[1] || '';
-        const intentUrl = `intent://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?${queryParams}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
-        window.location.href = intentUrl;
+        window.location.href = `intent://${ACE_SERVER_IP}:${ACE_PORT}/ace/manifest.m3u8?${queryParams}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
       } else {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(streamActualUrl).then(() => {
-            alert('¡Enlace copiado al portapapeles!\n\nAbre VLC y pulsa Ctrl+V en "Abrir emisión de red".');
-          }).catch(() => {
-            prompt('Copia esta URL en VLC:', streamActualUrl);
-          });
-        } else {
+        navigator.clipboard.writeText(streamActualUrl).then(() => {
+          alert('¡Enlace copiado al portapapeles!\n\nAbre VLC y pulsa Ctrl+V en "Abrir emisión de red".');
+        }).catch(() => {
           prompt('Copia esta URL en VLC:', streamActualUrl);
-        }
+        });
       }
     }
 
