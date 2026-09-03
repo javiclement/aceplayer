@@ -2,8 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AceStream Web Hub</title>
+  
+  <!-- Soporte PWA / Pantalla completa móvil -->
+  <meta name="theme-color" content="#0d0e12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,6 +20,7 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      -webkit-tap-highlight-color: transparent;
     }
 
     header {
@@ -58,7 +65,7 @@
       background: #272730;
       border: 1px solid #3f3f4e;
       color: #fff;
-      padding: 4px 10px;
+      padding: 5px 10px;
       border-radius: 6px;
       font-size: 12px;
       cursor: pointer;
@@ -128,6 +135,8 @@
       grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: 12px;
     }
+    
+    /* Optimizacion de renderizado GPU para scroll ligero */
     .channel-card {
       background: #181920;
       border: 1px solid #262733;
@@ -137,6 +146,8 @@
       flex-direction: column;
       position: relative;
       transition: transform 0.15s ease, border-color 0.15s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: 110px;
     }
     .channel-card:hover {
       background: #20222c;
@@ -269,7 +280,7 @@
   </header>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanales()">
+    <input type="text" id="search" placeholder="Buscar canal o programa..." oninput="filtrarCanalesDebounced()">
     <button id="filter-favs" class="btn-fav-filter" onclick="toggleFiltroFavoritos()">⭐ Favoritos</button>
     <select id="group-filter" onchange="filtrarCanales()">
       <option value="">Todas las categorías</option>
@@ -290,6 +301,7 @@
     let streamActualUrl = '';
     let soloFavoritos = false;
     let favoritos = JSON.parse(localStorage.getItem('ace_favoritos') || '[]');
+    let debounceTimer = null;
 
     function limpiar(str) {
       if (!str) return '';
@@ -487,16 +499,13 @@
         `;
         grid.appendChild(card);
 
-        // Click en estrella
         card.querySelector(`#star-${idx}`).addEventListener('click', (e) => toggleFavorito(item.id, e));
 
-        // Click en la cabecera (reproduce la primera opción por defecto)
         card.querySelector(`#card-top-${idx}`).addEventListener('click', () => {
           reproducir(item.variantes[0].canalOriginal, epgTexto);
           marcarChipActivo(card, 0);
         });
 
-        // Insertar botones de calidad
         const chipsBox = card.querySelector(`#chips-${idx}`);
         item.variantes.forEach((v, vIdx) => {
           const btn = document.createElement('button');
@@ -518,6 +527,12 @@
       if (chip) chip.classList.add('active');
     }
 
+    // Debounce ligero para que escribir en movil no bloquee el procesador
+    function filtrarCanalesDebounced() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(filtrarCanales, 120);
+    }
+
     function filtrarCanales() {
       const q = document.getElementById('search').value.toLowerCase();
       const grp = document.getElementById('group-filter').value;
@@ -533,7 +548,7 @@
       renderizarCanales(filtrados);
     }
 
-    // Tu método de reproducción original
+    // Reproductor HLS optimizado para ahorro de memoria RAM y bateria
     function reproducir(canal, epgTexto) {
       const video = document.getElementById('player');
       const streamUrl = `http://${ACE_SERVER_IP}:6878/ace/manifest.m3u8?id=${canal.hash}`;
@@ -548,7 +563,14 @@
       if (hls) hls.destroy();
 
       if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          // Optimizaciones de memoria para moviles:
+          backBufferLength: 0,       // Descarta inmediatamente los trozos de video pasados
+          maxBufferLength: 10,       // Maximo 10 segundos de video en RAM
+          maxMaxBufferLength: 20
+        });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
