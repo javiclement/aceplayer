@@ -2,9 +2,8 @@ name: Actualizar hashes y EPG
 
 on:
   schedule:
-    # Se ejecuta automáticamente cada 2 horas
     - cron: '0 */2 * * *'
-  workflow_dispatch: # Permite forzar la ejecución manual cuando quieras
+  workflow_dispatch:
 
 jobs:
   update-data:
@@ -18,15 +17,11 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Descargar Hashes y parsear EPG
+      - name: Descargar Hashes y parsear EPG optimizada
         run: |
-          # 1. Descargar hashes.json con reintentos y cabeceras completas de navegador
-          curl -sSL --retry 3 --retry-delay 5 \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" \
-            -H "Accept: application/json, text/plain, */*" \
-            "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o temp_hashes.json
+          # 1. Descargar hashes
+          curl -sSL -A "Mozilla/5.0" "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.json" -o temp_hashes.json
 
-          # Validar que sea un JSON válido y que contenga hashes antes de sobreescribir
           python - << 'EOF'
           import json, os, sys
           try:
@@ -34,23 +29,20 @@ jobs:
                   data = json.load(f)
               if 'hashes' in data and len(data['hashes']) > 0:
                   os.replace('temp_hashes.json', 'hashes.json')
-                  print(f"Descargados correctamente {len(data['hashes'])} canales.")
-              else:
-                  print("El JSON descargado no contiene canales válidos. Se mantiene la versión anterior.")
-                  sys.exit(0)
           except Exception as e:
-              print(f"Error parseando temp_hashes.json: {e}. Se mantiene la versión anterior.")
+              print(f"Manteniendo anterior hashes.json: {e}")
               sys.exit(0)
           EOF
 
-          # 2. Descargar guía XMLTV y convertir a epg.json
+          # 2. Descargar guía XMLTV y filtrar sólo eventos actuales/próximos
           curl -sSL "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml" -o guiatv.xml
 
           python - << 'EOF'
           import xml.etree.ElementTree as ET
           import json, re
+          from datetime import datetime, timezone, timedelta
 
-          def parse_date(d_str):
+          def parse_iso(d_str):
               if not d_str: return None
               m = re.match(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})', d_str)
               if m:
@@ -69,11 +61,30 @@ jobs:
                   if cid and dname is not None and dname.text:
                       channels[cid] = dname.text.strip()
 
+              ahora = datetime.now(timezone.utc)
+              limite_pasado = ahora - timedelta(hours=2)
+              limite_futuro = ahora + timedelta(hours=6)
+
               epg = {}
               for prog in root.findall('programme'):
                   cid = prog.attrib.get('channel')
-                  start = parse_date(prog.attrib.get('start'))
-                  stop = parse_date(prog.attrib.get('stop'))
+                  raw_start = prog.attrib.get('start', '')
+                  raw_stop = prog.attrib.get('stop', '')
+                  
+                  # Parseo rapido de fecha para comparar
+                  m_start = re.match(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})', raw_start)
+                  m_stop = re.match(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})', raw_stop)
+                  if not m_start or not m_stop: continue
+
+                  dt_start = datetime(int(m_start[1]), int(m_start[2]), int(m_start[3]), int(m_start[4]), int(m_start[5]), tzinfo=timezone.utc)
+                  dt_stop = datetime(int(m_stop[1]), int(m_stop[2]), int(m_stop[3]), int(m_stop[4]), int(m_stop[5]), tzinfo=timezone.utc)
+
+                  # Solo conservar si esta ocurriendo ahora o en las proximas horas
+                  if dt_stop < limite_pasado or dt_start > limite_futuro:
+                      continue
+
+                  start = parse_iso(raw_start)
+                  stop = parse_iso(raw_stop)
                   title_el = prog.find('title')
                   title = title_el.text.strip() if title_el is not None and title_el.text else 'Emisión'
 
@@ -82,27 +93,23 @@ jobs:
                       if cid in channels:
                           keys.append(channels[cid])
                       for k in keys:
-                          if k not in epg:
-                              epg[k] = []
+                          if k not in epg: epg[k] = []
                           epg[k].append({'start': start, 'end': stop, 'title': title})
 
               with open('epg.json', 'w', encoding='utf-8') as f:
                   json.dump(epg, f, ensure_ascii=False)
           except Exception as e:
-              print(f"Error generando epg.json: {e}")
+              print(f"Error generando epg.json optimizado: {e}")
           EOF
 
           rm -f guiatv.xml temp_hashes.json
 
-      - name: Guardar y subir cambios
+      - name: Guardar cambios
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add hashes.json epg.json
-          # Si hay diferencias reales, hace commit y push
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-update hashes and EPG"
+            git commit -m "Auto-update hashes and lightweight EPG"
             git push
-          else
-            echo "No hay cambios nuevos respecto a la última versión."
           fi
