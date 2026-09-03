@@ -209,16 +209,31 @@
     async function init() {
       const grid = document.getElementById('grid');
       try {
+        const antiCache = Date.now();
+        const fetchOptions = {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        };
+
         const [resCanales, resEpg] = await Promise.allSettled([
-          fetch('hashes.json?v=' + Date.now()).then(r => r.json()),
-          fetch('epg.json?v=' + Date.now()).then(r => r.json())
+          fetch(`hashes.json?nocache=${antiCache}`, fetchOptions).then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          }),
+          fetch(`epg.json?nocache=${antiCache}`, fetchOptions).then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          })
         ]);
 
         if (resEpg.status === 'fulfilled' && resEpg.value) {
           guiaEPG = resEpg.value;
         }
 
-        if (resCanales.status === 'fulfilled' && resCanales.value.hashes) {
+        if (resCanales.status === 'fulfilled' && resCanales.value && resCanales.value.hashes) {
           listaCanales = resCanales.value.hashes;
           poblarFiltroGrupos();
           renderizarCanales(listaCanales);
@@ -226,6 +241,7 @@
           grid.innerHTML = '<p style="color:#f55; padding:20px;">No se pudieron cargar los canales.</p>';
         }
       } catch (err) {
+        console.error(err);
         grid.innerHTML = '<p style="color:#f55; padding:20px;">Error al inicializar.</p>';
       }
     }
