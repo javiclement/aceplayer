@@ -1,6 +1,6 @@
 {
-  "generated": "2026-09-06T08:00:47Z",
-  "count": 74,
+  "generated": "2026-09-06T13:20:51Z",
+  "count": 72,
   "hashes": [
     {
       "title": "M+ Baloncesto 1080p **",
@@ -94,15 +94,8 @@
       "tvg_id": "DAZN F1 HD"
     },
     {
-      "title": "DAZN F1 1080p *",
-      "hash": "d719181097d256073844390b3e094fbcb1bceaa4",
-      "group": "FORMULA 1",
-      "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
-      "tvg_id": "DAZN F1 HD"
-    },
-    {
-      "title": "DAZN F1 1080p *",
-      "hash": "895d08633bb22c2573281655cf3ca44de476cc73",
+      "title": "DAZN F1 1080p **",
+      "hash": "02be332ebead0484a5354fa25e97b6833b8b129e",
       "group": "FORMULA 1",
       "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
       "tvg_id": "DAZN F1 HD"
@@ -110,13 +103,6 @@
     {
       "title": "DAZN F1 1080p **",
       "hash": "f8b0eae8fda973cf426311541d1668aa592f0a8c",
-      "group": "FORMULA 1",
-      "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
-      "tvg_id": "DAZN F1 HD"
-    },
-    {
-      "title": "DAZN F1 1080p **",
-      "hash": "02be332ebead0484a5354fa25e97b6833b8b129e",
       "group": "FORMULA 1",
       "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
       "tvg_id": "DAZN F1 HD"
@@ -165,14 +151,14 @@
     },
     {
       "title": "M+ LaLiga 720p *",
-      "hash": "f863873de9f7b2996dde19a0657dd89835af3007",
+      "hash": "3ace1463a7cad979c3a4002b245487e9982e9f1a",
       "group": "LA LIGA",
       "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
       "tvg_id": "M+ LaLiga HD"
     },
     {
       "title": "M+ LaLiga 720p *",
-      "hash": "3ace1463a7cad979c3a4002b245487e9982e9f1a",
+      "hash": "f863873de9f7b2996dde19a0657dd89835af3007",
       "group": "LA LIGA",
       "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
       "tvg_id": "M+ LaLiga HD"
@@ -180,13 +166,6 @@
     {
       "title": "M+ LaLiga 720p **",
       "hash": "5ad75216a63a31fef23ddc3532edc66c2fc0936c",
-      "group": "LA LIGA",
-      "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
-      "tvg_id": "M+ LaLiga HD"
-    },
-    {
-      "title": "M+ LaLiga 1080p **",
-      "hash": "a64e02a6d914f098cbe1b724ff4f7aef83419a4a",
       "group": "LA LIGA",
       "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
       "tvg_id": "M+ LaLiga HD"
@@ -201,6 +180,13 @@
     {
       "title": "M+ LaLiga 1080p **",
       "hash": "3ce95bc9d6fc63676d828bb2cfc7a1f1854fd259",
+      "group": "LA LIGA",
+      "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
+      "tvg_id": "M+ LaLiga HD"
+    },
+    {
+      "title": "M+ LaLiga 1080p **",
+      "hash": "a64e02a6d914f098cbe1b724ff4f7aef83419a4a",
       "group": "LA LIGA",
       "logo": "https://i.ibb.co/yfV1Q8n/liga.png",
       "tvg_id": "M+ LaLiga HD"
@@ -452,14 +438,14 @@
     },
     {
       "title": "RFEF TV 1080p **",
-      "hash": "3fbc1b7dc316f19b77e7f7cfc775a0af67adcc7f",
+      "hash": "854ff9c607101791346111cd2366a392c3b8c351",
       "group": "RFEF TV",
       "logo": "https://static.wikia.nocookie.net/logopedia/images/d/df/Logo_Primera_RFEF_2021.png/revision/latest?cb=20230620215900&path-prefix=es",
       "tvg_id": "Primera Federación"
     },
     {
       "title": "RFEF TV 1080p **",
-      "hash": "854ff9c607101791346111cd2366a392c3b8c351",
+      "hash": "3fbc1b7dc316f19b77e7f7cfc775a0af67adcc7f",
       "group": "RFEF TV",
       "logo": "https://static.wikia.nocookie.net/logopedia/images/d/df/Logo_Primera_RFEF_2021.png/revision/latest?cb=20230620215900&path-prefix=es",
       "tvg_id": "Primera Federación"
