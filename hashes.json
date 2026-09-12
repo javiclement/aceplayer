@@ -1,6 +1,6 @@
 {
-  "generated": "2026-09-11T22:02:12Z",
-  "count": 82,
+  "generated": "2026-09-12T03:00:45Z",
+  "count": 79,
   "hashes": [
     {
       "title": "M+ Baloncesto 1080p **",
@@ -102,14 +102,14 @@
     },
     {
       "title": "DAZN F1 720p **",
-      "hash": "20086a76248efe8d5230c15d41c69bae8fa6381c",
+      "hash": "f16d68fa5ff64f3894a45062ca28e4e66f142c6a",
       "group": "FORMULA 1",
       "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
       "tvg_id": "DAZN F1 HD"
     },
     {
       "title": "DAZN F1 720p **",
-      "hash": "f16d68fa5ff64f3894a45062ca28e4e66f142c6a",
+      "hash": "20086a76248efe8d5230c15d41c69bae8fa6381c",
       "group": "FORMULA 1",
       "logo": "https://i.ibb.co/2Ndmtbp/f1.png",
       "tvg_id": "DAZN F1 HD"
@@ -388,13 +388,6 @@
       "tvg_id": "M+ Golf HD"
     },
     {
-      "title": "M+ Golf 2 1080p *",
-      "hash": "597cca4ef375529aaca0608b43187d99d26ca714",
-      "group": "MOVISTAR DEPORTES",
-      "logo": "https://r2.thesportsdb.com/images/media/channel/logo/irjqp71744196637.png",
-      "tvg_id": "M+ Golf 2 HD"
-    },
-    {
       "title": "M+ Golf 2 1080p **",
       "hash": "882074140fca664e119a43294afa2fb4a64917ef",
       "group": "MOVISTAR DEPORTES",
@@ -479,13 +472,6 @@
       "tvg_id": "La 2"
     },
     {
-      "title": "Esport3 1080p *",
-      "hash": "21bc11d195f5753c396e390c215952d21541d04d",
-      "group": "DEPORTES",
-      "logo": "https://img.3cat.cat/multimedia/jpg/1/5/1697802708951.jpg",
-      "tvg_id": "Esport 3"
-    },
-    {
       "title": "Gol TV 1080p **",
       "hash": "42d3724b275c8029cef0b4d9ce4c59add5cd3ec1",
       "group": "DEPORTES",
@@ -549,22 +535,15 @@
       "tvg_id": ""
     },
     {
-      "title": "Dazn MotoGP 1080p *",
-      "hash": "20d4b3586bb822c3618cf8fb665a304869c5e1a5",
-      "group": "MOTOGP",
-      "logo": "https://hips.hearstapps.com/vader-prod.s3.amazonaws.com/1772006365-dazn-motogp-699eaba85423e.jpg",
-      "tvg_id": ""
-    },
-    {
       "title": "Dazn MotoGP 1080p **",
-      "hash": "b18dda520e112e48a33d6d0ae558681b9ecfbb4d",
+      "hash": "c53bdb3be55d12c5188d25085f1bb16911c15cea",
       "group": "MOTOGP",
       "logo": "https://hips.hearstapps.com/vader-prod.s3.amazonaws.com/1772006365-dazn-motogp-699eaba85423e.jpg",
       "tvg_id": "DAZN MotoGP"
     },
     {
       "title": "Dazn MotoGP 1080p **",
-      "hash": "c53bdb3be55d12c5188d25085f1bb16911c15cea",
+      "hash": "b18dda520e112e48a33d6d0ae558681b9ecfbb4d",
       "group": "MOTOGP",
       "logo": "https://hips.hearstapps.com/vader-prod.s3.amazonaws.com/1772006365-dazn-motogp-699eaba85423e.jpg",
       "tvg_id": "DAZN MotoGP"
