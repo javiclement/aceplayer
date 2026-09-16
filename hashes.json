@@ -1,6 +1,6 @@
 {
-  "generated": "2026-09-15T23:31:20Z",
-  "count": 6,
+  "generated": "2026-09-16T03:31:44Z",
+  "count": 5,
   "hashes": [
     {
       "title": "DAZN 2 720p *",
@@ -22,13 +22,6 @@
       "group": "DAZN",
       "logo": "https://i.ibb.co/Kz0GXSX/dazn2.png",
       "tvg_id": "DAZN 2 HD"
-    },
-    {
-      "title": "Sky Sport Tennis 1080p **",
-      "hash": "f31d1f85570b58be8d5ab6f4f2d0f3f9c815c35f",
-      "group": "TENNIS",
-      "logo": "https://pbs.twimg.com/profile_images/1951065414118539266/9Go2oZlV_400x400.jpg",
-      "tvg_id": ""
     },
     {
       "title": "Tennis Channel 1080p *",
